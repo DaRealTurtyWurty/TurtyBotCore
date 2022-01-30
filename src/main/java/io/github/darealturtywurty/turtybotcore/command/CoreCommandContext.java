@@ -1,17 +1,16 @@
 package io.github.darealturtywurty.turtybotcore.command;
 
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 
 public class CoreCommandContext implements CommandContext {
-
-    private final SlashCommandEvent event;
-
-    public CoreCommandContext(final SlashCommandEvent event) {
+    private final SlashCommandInteractionEvent event;
+    
+    public CoreCommandContext(final SlashCommandInteractionEvent event) {
         this.event = event;
     }
-
+    
     @Override
-    public SlashCommandEvent getEvent() {
+    public SlashCommandInteractionEvent getEvent() {
         return this.event;
     }
 }

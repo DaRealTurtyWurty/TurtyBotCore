@@ -5,11 +5,11 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.User;
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.sharding.ShardManager;
 
 public interface CommandContext {
-
+    
     /**
      * Returns the {@link net.dv8tion.jda.api.entities.User author} of the message
      * as user
@@ -20,7 +20,7 @@ public interface CommandContext {
     default User getAuthor() {
         return getEvent().getUser();
     }
-
+    
     /**
      * Returns the {@link net.dv8tion.jda.api.entities.TextChannel channel} that the
      * message for this event was send in
@@ -31,7 +31,7 @@ public interface CommandContext {
     default TextChannel getChannel() {
         return (TextChannel) getEvent().getChannel();
     }
-
+    
     /**
      * Returns the {@link net.dv8tion.jda.api.events.interaction.SlashCommandEvent
      * message event} that was received for this instance
@@ -39,8 +39,8 @@ public interface CommandContext {
      * @return the {@link net.dv8tion.jda.api.events.interaction.SlashCommandEvent
      *         message event} that was received for this instance
      */
-    SlashCommandEvent getEvent();
-
+    SlashCommandInteractionEvent getEvent();
+    
     /**
      * Returns the {@link net.dv8tion.jda.api.entities.Guild} for the current
      * command/event
@@ -50,7 +50,7 @@ public interface CommandContext {
     default Guild getGuild() {
         return getEvent().getGuild();
     }
-
+    
     /**
      * Returns the current {@link net.dv8tion.jda.api.JDA jda} instance
      *
@@ -59,7 +59,7 @@ public interface CommandContext {
     default JDA getJDA() {
         return getEvent().getJDA();
     }
-
+    
     /**
      * Returns the {@link net.dv8tion.jda.api.entities.Member author} of the message
      * as member
@@ -70,7 +70,7 @@ public interface CommandContext {
     default Member getMember() {
         return getEvent().getMember();
     }
-
+    
     /**
      * Returns the {@link net.dv8tion.jda.api.entities.Member member} in the guild
      * for the currently logged in account
@@ -81,7 +81,7 @@ public interface CommandContext {
     default Member getSelfMember() {
         return getGuild().getSelfMember();
     }
-
+    
     /**
      * Returns the {@link net.dv8tion.jda.api.entities.User user} for the currently
      * logged in account
@@ -92,7 +92,7 @@ public interface CommandContext {
     default User getSelfUser() {
         return getJDA().getSelfUser();
     }
-
+    
     /**
      * Returns the current {@link net.dv8tion.jda.api.sharding.ShardManager}
      * instance

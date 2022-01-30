@@ -1,15 +1,11 @@
 package io.github.darealturtywurty.turtybotcore.command;
 
 import java.lang.reflect.InvocationTargetException;
-import java.time.Instant;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
@@ -17,11 +13,13 @@ import org.reflections.util.ClasspathHelper;
 import org.reflections.util.ConfigurationBuilder;
 import org.reflections.util.FilterBuilder;
 
-import io.github.darealturtywurty.turtybot.util.core.BotUtils;
-import io.github.darealturtywurty.turtybot.util.core.CoreBotUtils;
-import io.github.darealturtywurty.turtybot.util.data.GuildInfo;
+import io.github.darealturtywurty.turtybotcore.corebot.CoreBot;
+import io.github.darealturtywurty.turtybotcore.database.DataAccess;
+import io.github.darealturtywurty.turtybotcore.database.GuildData;
+import io.github.darealturtywurty.turtybotcore.database.UserData;
+import io.github.darealturtywurty.turtybotcore.discord.BotUtils;
 import net.dv8tion.jda.api.entities.TextChannel;
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 
 public class CommandManager {
 
@@ -46,15 +44,14 @@ public class CommandManager {
     }
 
     public void registerCommands() {
-        final var reflections = new Reflections(new ConfigurationBuilder()
-                .setUrls(ClasspathHelper.forPackage("io.github.darealturtywurty.turtybot"))
-                .setScanners(Scanners.SubTypes, Scanners.TypesAnnotated)
-                .filterInputsBy(new FilterBuilder().includePackage("io.github.darealturtywurty.turtybot")));
+        final var reflections = new Reflections(
+                new ConfigurationBuilder().setUrls(ClasspathHelper.forPackage(CoreBot.class.getPackageName()))
+                        .setScanners(Scanners.SubTypes, Scanners.TypesAnnotated)
+                        .filterInputsBy(new FilterBuilder().includePackage(CoreBot.class.getPackageName())));
         reflections.getTypesAnnotatedWith(RegisterBotCmd.class).forEach(command -> {
             try {
                 if (command.getAnnotation(RegisterBotCmd.class).needsManager()) {
-                    addCommand(
-                            (GuildCommand) command.getDeclaredConstructor(this.getClass()).newInstance(this));
+                    addCommand((GuildCommand) command.getDeclaredConstructor(this.getClass()).newInstance(this));
 
                 } else {
                     addCommand((GuildCommand) command.getDeclaredConstructor().newInstance());
@@ -66,8 +63,9 @@ public class CommandManager {
         });
     }
 
-    protected void handle(final SlashCommandEvent event) {
-        final GuildInfo info = CoreBotUtils.GUILDS.get(event.getGuild().getIdLong());
+    protected void handle(final SlashCommandInteractionEvent event) {
+        final GuildData guildData = DataAccess.getGuildData(event.getGuild());
+        final UserData userData = guildData.getUser(event.getUser().getIdLong());
         final GuildCommand command = getCommand(event.getName());
         if (command == null)
             return;
@@ -89,63 +87,35 @@ public class CommandManager {
             event.getHook().deleteOriginal().queue();
         }
 
-        if ((!command.isBotOwnerOnly() || !BotUtils.isBotOwner(event.getUser()))
-                && command.isBotOwnerOnly()) {
-            event.deferReply().setEphemeral(true).setContent("You must be the bot owner to use this command!")
-                    .queue();
+        if ((!command.isBotOwnerOnly() || !BotUtils.isBotOwner(event.getUser())) && command.isBotOwnerOnly()) {
+            event.deferReply().setEphemeral(true).setContent("You must be the bot owner to use this command!").queue();
             return;
         }
 
-        if ((!command.isModeratorOnly() || !BotUtils.isModerator(event.getGuild(), event.getUser()))
-                && command.isModeratorOnly()) {
-            event.deferReply().setEphemeral(true).setContent("You must be a moderator to use this command!")
-                    .queue();
+        if ((!command.isModeratorOnly() || !BotUtils.isModerator(event.getMember())) && command.isModeratorOnly()) {
+            event.deferReply().setEphemeral(true).setContent("You must be a moderator to use this command!").queue();
             return;
         }
 
-        /*
-         * if ((!command.isBoosterOnly() || event.getMember().getTimeBoosted() != null)
-         * && event.getUser().getIdLong() != BotUtils.getOwnerID() ||
-         * command.isBoosterOnly()) { event.deferReply().setEphemeral(true)
-         * .setContent("You must be a server booster to use this command!").queue(hook
-         * -> { hook.deleteOriginal().queueAfter(15, TimeUnit.SECONDS);
-         * event.getHook().deleteOriginal().queueAfter(15, TimeUnit.SECONDS); });
-         * return; }
-         */
-
-        final var atomicReturn = new AtomicBoolean(true);
-        if (command.getCooldownMillis() > 0L) {
-            info.userCooldowns.compute(event.getUser().getIdLong(), ($, commands) -> {
-                final Instant cooldown = Instant.now().plusMillis(command.getCooldownMillis());
-                if (commands != null) {
-                    commands.compute(command, ($1, instant) -> {
-                        if (instant != null && Instant.now().isBefore(instant)) {
-                            event.deferReply(true).setContent(
-                                    "You are currently on cooldown! You can run this command again in "
-                                            + TimeUnit.MILLISECONDS.toSeconds(
-                                                    instant.toEpochMilli() - System.currentTimeMillis())
-                                            + " seconds!")
-                                    .queue();
-                            return instant;
-                        }
-
-                        atomicReturn.set(false);
-                        return cooldown;
+        if (command.isBoosterOnly()
+                && (!BotUtils.isBotOwner(event.getUser()) || event.getMember().getTimeBoosted() == null)) {
+            event.deferReply().setEphemeral(true).setContent("You must be a server booster to use this command!")
+                    .queue(hook -> {
+                        hook.deleteOriginal().queueAfter(15, TimeUnit.SECONDS);
+                        event.getHook().deleteOriginal().queueAfter(15, TimeUnit.SECONDS);
                     });
-                    return commands;
-                }
-
-                final Map<GuildCommand, Instant> map = new HashMap<>();
-                map.put(command, cooldown);
-                atomicReturn.set(false);
-                return map;
-            });
-        } else {
-            atomicReturn.set(false);
+            return;
         }
 
-        if (atomicReturn.get())
-            return;
+        if (command.getCooldownMillis() > 0L) {
+            final long cooldown = userData.getCooldown(command.getName());
+            if (cooldown > 0L) {
+                event.deferReply(true).setContent("You are currently on cooldown! You can run this command again in "
+                        + TimeUnit.MILLISECONDS.toSeconds(cooldown) + " seconds!").queue();
+                return;
+            }
+            userData.putCooldown(command.getName(), command.getCooldownMillis());
+        }
 
         command.handle(new CoreCommandContext(event));
     }
